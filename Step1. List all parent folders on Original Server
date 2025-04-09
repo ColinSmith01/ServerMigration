@@ -1,0 +1,23 @@
+# Define the output file
+$outputFile = "C:\Temp\folders.txt"
+
+# Clear the output file if it exists
+if (Test-Path $outputFile) { Clear-Content $outputFile }
+
+# Get all drives except C: and DVD/CD drives
+Get-PSDrive -PSProvider FileSystem | Where-Object { 
+    $_.Root -ne "C:\" -and $_.Description -notmatch "CD-ROM"
+} | ForEach-Object {
+    $driveRoot = $_.Root
+
+    # Check if the drive path exists before proceeding
+    if (Test-Path $driveRoot) {
+        Get-ChildItem -Path $driveRoot -Directory | ForEach-Object { 
+            "$($driveRoot)$($_.Name)" 
+        } | Out-File -FilePath $outputFile -Append
+    } else {
+        Write-Host "Drive $driveRoot cannot be found. Skipping..."
+    }
+}
+
+Write-Host "Script completed! Results saved to $outputFile"
