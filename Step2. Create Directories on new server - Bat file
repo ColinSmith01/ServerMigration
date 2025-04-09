@@ -1,0 +1,33 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: Define output file path
+set "outputFile=%USERPROFILE%\Desktop\MKDIR.txt"
+
+:: Clear the output file if it exists
+if exist "%outputFile%" del "%outputFile%"
+
+:: Prompt the user
+echo Please paste your list of directories (one per line).
+echo After pasting, press CTRL+Z and then ENTER to finish input.
+echo.
+
+:: Read input and process it line by line
+(for /f "usebackq delims=" %%A in (`"more"`) do (
+    set "dir=%%A"
+    
+    if exist "!dir!" (
+        echo [SKIPPED] Folder already exists: "!dir!"
+    ) else (
+        mkdir "!dir!"
+        echo [CREATED] Folder created: "!dir!"
+    )
+    
+    echo mkdir "!dir!" >> "%outputFile%"
+))
+
+:: Completion message
+echo.
+echo All MKDIR commands have been saved to "%outputFile%"
+echo.
+pause
