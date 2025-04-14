@@ -1,0 +1,86 @@
+#Port 445 needs to be allowed for robocopy to work
+
+# Define the output file for parent folders on the Desktop
+$outputFile = "$env:USERPROFILE\Desktop\folders.txt"
+
+# Clear the output file if it exists
+if (Test-Path $outputFile) { Clear-Content $outputFile }
+
+# Get all drives except C: and DVD/CD drives
+Get-PSDrive -PSProvider FileSystem | Where-Object { 
+    $_.Root -ne "C:\" -and $_.Description -notmatch "CD-ROM"
+} | ForEach-Object {
+    $driveRoot = $_.Root
+
+    # Check if the drive path exists before proceeding
+    if (Test-Path $driveRoot) {
+        Get-ChildItem -Path $driveRoot -Directory | ForEach-Object { 
+            "$($driveRoot)$($_.Name)" 
+        } | Out-File -FilePath $outputFile -Append
+    } else {
+        Write-Host "Drive $driveRoot cannot be found. Skipping..."
+    }
+}
+
+Write-Host "Step 1 completed! Results saved to $outputFile"
+
+# Prompt for destination server name
+$serverName = Read-Host "Enter destination server name (e.g., YourNewServerName)"
+
+# Check if serverName is provided
+if (-not $serverName) {
+    Write-Host "No server name provided. Exiting..."
+    exit
+}
+
+# Read the parent folders from the text file
+$parentFolders = Get-Content -Path $outputFile
+
+# Define the output file for MKDIR commands on the Desktop
+$mkdirFile = "$env:USERPROFILE\Desktop\MKDIR.txt"
+
+# Clear the output file if it exists
+if (Test-Path $mkdirFile) { Clear-Content $mkdirFile }
+
+# Create directories on the new server
+foreach ($folder in $parentFolders) {
+    $targetDir = "\\$serverName\$($folder.Substring(0, 1))$\$($folder.Substring(3))"
+    if (Test-Path $targetDir) {
+        Write-Host "[SKIPPED] Folder already exists: $targetDir"
+    } else {
+        New-Item -Path $targetDir -ItemType Directory
+        Write-Host "[CREATED] Folder created: $targetDir"
+    }
+    "mkdir $targetDir" | Out-File -FilePath $mkdirFile -Append
+}
+
+Write-Host "Step 2 completed! MKDIR commands saved to $mkdirFile"
+
+# Define output file path for robocopy commands on the Desktop
+$robocopyFile = "$env:USERPROFILE\Desktop\robocopy_commands.bat"
+
+# Create the file if it doesn't exist, then clear its contents
+if (-not (Test-Path $robocopyFile)) { New-Item -Path $robocopyFile -ItemType File }
+Clear-Content $robocopyFile
+
+# Read the MKDIR commands from the text file
+$mkdirCommands = Get-Content -Path $mkdirFile
+
+# Process each MKDIR command and create robocopy commands
+foreach ($command in $mkdirCommands) {
+    if ($command -match "^mkdir\s+(.*)$") {
+        $sourceDir = $matches[1]
+        $driveLetter = $sourceDir.Substring(0, 2)
+        $folderPath = $sourceDir.Substring(3)
+        $targetDir = "\\$serverName\$($driveLetter.Substring(0, 1))$\$folderPath"
+        $robocopyCommand = "robocopy `"$sourceDir`" `"$targetDir`" /E /B /COPYALL /MIR /R:1 /W:2 /V /TEE /LOG+:`"\\$serverName\C$\Temp\ROBOCOPY\$folderPath.log.txt`""
+        $robocopyCommand | Out-File -FilePath $robocopyFile -Append
+    }
+}
+
+Write-Host "Step 3 completed! Robocopy commands saved to $robocopyFile"
+
+# Run the robocopy_commands.bat file
+Start-Process -FilePath $robocopyFile -Wait
+
+Write-Host "Robocopy commands executed!"
