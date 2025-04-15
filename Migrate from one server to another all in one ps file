@@ -63,6 +63,13 @@ $robocopyFile = "$env:USERPROFILE\Desktop\robocopy_commands.bat"
 if (-not (Test-Path $robocopyFile)) { New-Item -Path $robocopyFile -ItemType File }
 Clear-Content $robocopyFile
 
+# Ensure the RoboCopy folder exists
+$robocopyLogDir = "C:\Temp\RoboCopy"
+if (-not (Test-Path $robocopyLogDir)) {
+    New-Item -Path $robocopyLogDir -ItemType Directory
+    Write-Host "All RoboCopy log files are in C:\Temp\RoboCopy"
+}
+
 # Read the MKDIR commands from the text file
 $mkdirCommands = Get-Content -Path $mkdirFile
 
@@ -73,7 +80,7 @@ foreach ($command in $mkdirCommands) {
         $driveLetter = $sourceDir.Substring(0, 2)
         $folderPath = $sourceDir.Substring(3)
         $targetDir = "\\$serverName\$($driveLetter.Substring(0, 1))$\$folderPath"
-        $robocopyCommand = "robocopy `"$sourceDir`" `"$targetDir`" /E /B /COPYALL /MIR /R:1 /W:2 /V /TEE /LOG+:`"\\$serverName\C$\Temp\ROBOCOPY\$folderPath.log.txt`""
+        $robocopyCommand = "robocopy `"$sourceDir`" `"$targetDir`" /E /B /COPYALL /MIR /R:1 /W:2 /V /TEE /LOG+:`"$robocopyLogDir\$folderPath.log.txt`""
         $robocopyCommand | Out-File -FilePath $robocopyFile -Append
     }
 }
